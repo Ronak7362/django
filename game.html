@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bucchi's Catch the Love!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Creepster&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        /* Custom CSS for the game for a more unique and cute look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%); /* Soft pink gradient */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+            color: #4a4a4a;
+        }
+
+        .game-container {
+            background-color: #fff;
+            border-radius: 20px; /* More rounded corners */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); /* Softer shadow */
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 90%; /* Responsive width */
+            width: 500px; /* Max width for desktop */
+            position: relative;
+            overflow: hidden; /* Keep falling items within bounds */
+            min-height: 600px; /* Minimum height for game area */
+        }
+
+        .game-area {
+            width: 100%;
+            height: 450px; /* Fixed height for game play area */
+            background-color: #e0f7fa; /* Light blue background */
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #80deea; /* Cute border */
+            touch-action: pan-x; /* Allow horizontal pan for player movement */
+            transition: background-color 2s ease-in-out, background-image 2s ease-in-out; /* Smooth background transition */
+        }
+
+        /* Thriller background style */
+        .game-area.thriller-mode {
+            background: radial-gradient(circle at center, #333333 0%, #000000 100%); /* Dark, ominous gradient */
+            border-color: #ff0000; /* Red border */
+            animation: pulseBorder 1.5s infinite alternate;
+        }
+
+        @keyframes pulseBorder {
+            from { border-color: #ff0000; }
+            to { border-color: #8b0000; }
+        }
+
+
+        .player {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 5rem; /* Large player emoji */
+            cursor: grab; /* Indicates draggable */
+            transition: left 0.05s linear; /* Smooth movement */
+            z-index: 10;
+        }
+
+        /* Shield effect for player */
+        .player.shielded {
+            animation: shieldEffect 0.5s infinite alternate;
+            box-shadow: 0 0 20px 10px rgba(0, 255, 255, 0.5); /* Cyan glow */
+            border-radius: 50%; /* Make glow circular around emoji */
+        }
+
+        @keyframes shieldEffect {
+            from { transform: translateX(-50%) scale(1); opacity: 1; }
+            to { transform: translateX(-50%) scale(1.05); opacity: 0.8; }
+        }
+
+        .falling-item {
+            position: absolute;
+            top: -50px; /* Start above the visible area */
+            font-size: 2.5rem; /* Size of falling items */
+            user-select: none; /* Prevent text selection */
+            pointer-events: none; /* Don't interfere with clicks */
+            animation: fall linear forwards; /* Falling animation */
+            z-index: 5;
+        }
+
+        @keyframes fall {
+            from { transform: translateY(0); }
+            to { transform: translateY(calc(100vh + 50px)); /* Fall off screen */ }
+        }
+
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            z-index: 100;
+            display: none; /* Hidden by default */
+            animation: fadeIn 0.5s ease-out;
+            max-width: 80%;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -60%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        .message-box h2 {
+            font-size: 2.5rem;
+            color: #d81b60; /* Pink heading */
+            margin-bottom: 15px;
+        }
+
+        .message-box p {
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .cute-button {
+            background: linear-gradient(45deg, #ff8a80 0%, #ff5252 100%); /* Red gradient */
+            color: white;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255, 82, 82, 0.4);
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .cute-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(255, 82, 82, 0.6);
+        }
+
+        .cute-button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(255, 82, 82, 0.4);
+        }
+
+        .voice-status {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #757575;
+            min-height: 20px; /* Prevent layout shift */
+        }
+
+        /* Visual feedback styles */
+        .health-hit-effect {
+            animation: healthFlash 0.3s ease-out forwards;
+        }
+
+        @keyframes healthFlash {
+            0% { background-color: transparent; }
+            50% { background-color: rgba(255, 0, 0, 0.3); }
+            100% { background-color: transparent; }
+        }
+
+        .score-boost-effect {
+            animation: scoreScale 0.3s ease-out forwards;
+        }
+
+        @keyframes scoreScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        /* I Love You Bucchi Pop-up */
+        .love-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5rem; /* Medium size */
+            font-weight: bold;
+            color: #ff007f; /* Bright pink */
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(45deg, #ffe0f0, #ffc0cb); /* Soft pink background */
+            padding: 15px 30px;
+            border-radius: 25px;
+            border: 3px solid #ff69b4; /* Hot pink border */
+            z-index: 110; /* Above other elements */
+            animation: loveMessagePop 1.5s ease-out forwards;
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+
+        @keyframes loveMessagePop {
+            0% { opacity: 0; transform: translate(-50%, -60%) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -40%) scale(0.9); }
+        }
+
+        /* Thriller Pop-up Message */
+        .thriller-message-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); /* Dark semi-transparent overlay */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 120; /* Above all other game elements */
+            animation: thrillerFadeInOut 4s ease-out forwards; /* Fade in, stay, fade out */
+            pointer-events: none; /* Allow clicks to pass through to game area */
+        }
+
+        .thriller-message-content {
+            font-family: 'Creepster', cursive; /* Spooky font */
+            font-size: 2.8rem;
+            color: #ff4500; /* Orange-red color */
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 0, 0, 0.6); /* Glowing effect */
+            padding: 20px;
+            max-width: 80%;
+            line-height: 1.3;
+        }
+
+        @keyframes thrillerFadeInOut {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .game-container {
+                padding: 15px;
+                min-height: 500px;
+            }
+            .game-area {
+                height: 350px;
+            }
+            .player {
+                font-size: 4rem;
+            }
+            .falling-item {
+                font-size: 2rem;
+            }
+            .message-box h2 {
+                font-size: 2rem;
+            }
+            .message-box p {
+                font-size: 1rem;
+            }
+            .cute-button {
+                padding: 10px 20px;
+                font-size: 1rem;
+            }
+            .love-message {
+                font-size: 1.8rem; /* Smaller on mobile */
+                padding: 10px 20px;
+            }
+            .thriller-message-content {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="game-container">
+        <h1 class="text-4xl font-bold text-pink-600 mb-4">Bucchi's Catch the Love!</h1>
+        <div class="flex justify-between w-full mb-4 px-2">
+            <div class="text-xl font-semibold text-purple-700">Score: <span id="score">0</span></div>
+            <div class="text-xl font-semibold text-red-700">Health: <span id="health">100</span></div>
+        </div>
+
+        <div id="gameArea" class="game-area">
+            <div id="player" class="player">🧺</div>
+        </div>
+
+        <div class="flex justify-center w-full mt-4">
+            <button id="muteButton" class="cute-button">Unmute Music</button>
+            <button id="restartButton" class="cute-button hidden">Play Again!</button>
+        </div>
+        <div class="voice-status" id="voiceStatus">Say "start the game" to begin!</div>
+
+        <div id="messageBox" class="message-box">
+            <h2 id="messageTitle">Welcome, Bucchi!</h2>
+            <p id="messageText">
+                To start the game, please say "<span class="font-bold text-pink-500">start the game</span>" aloud.
+                Catch all the lovely hearts and stars, but watch out for the broken hearts and skulls!
+                Look out for <span class="font-bold text-yellow-500">🌟</span> (health), <span class="font-bold text-blue-500">⚡</span> (speed), and <span class="font-bold text-green-500">🛡️</span> (shield)!
+                But avoid the <span class="font-bold text-gray-500">🐌</span> (slowdown) and <span class="font-bold text-purple-500">🌀</span> (inverted controls)!
+            </p>
+        </div>
+    </div>
+
+    <audio id="backgroundMusic" loop muted>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        // Game state variables
+        const gameArea = document.getElementById('gameArea');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const healthDisplay = document.getElementById('health');
+        const messageBox = document.getElementById('messageBox');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageText = document.getElementById('messageText');
+        const restartButton = document.getElementById('restartButton');
+        const voiceStatus = document.getElementById('voiceStatus');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        const muteButton = document.getElementById('muteButton');
+
+        let score = 0;
+        let health = 100;
+        let gameRunning = false;
+        let animationFrameId;
+        let fallingItems = []; // Array to store falling item objects
+        let lastItemSpawnTime = 0;
+        let itemSpawnInterval = 1500; // Initial interval for item spawning (ms)
+        let gameSpeed = 1; // Multiplier for falling speed
+        let lastScoreForLoveMessage = -1; // To track when the last love message popped up
+        let thrillerTriggered = false; // New: To track if thriller event has happened
+
+        // Player movement variables
+        let playerX = 0; // Initial horizontal position, calculated on init
+        let playerSpeed = 10; // Pixels per frame
+        let basePlayerSpeed = 10; // Store base speed for slowdown effect
+        let keysPressed = {}; // To track currently pressed keys
+        let touchStartX = 0; // For touch swipe
+        let playerWidth = 0; // Will be set after player element is rendered
+        let slowdownTimeoutId = null; // For managing slowdown effect
+        let speedBoostTimeoutId = null; // For managing speed boost effect
+        let controlsInverted = false; // For inverted controls effect
+        let invertTimeoutId = null; // For managing inverted controls effect
+        let isShielded = false; // For shield power-up
+        let shieldTimeoutId = null; // For managing shield duration
+
+        // Game items configuration
+        // Good items: regular, plus '🌟' for health boost, '⚡' for speed boost, '🛡️' for shield
+        const goodItems = ['❤️', '⭐', '🌸', '✨', '💖'];
+        const specialGoodItems = ['🌟', '⚡', '🛡️']; // Health boost, Speed Boost, Shield
+        // Bad items: regular, plus '🐌' for player slowdown, '🌀' for inverted controls
+        const badItems = ['💔', '💀', '💣', '🕸️'];
+        const specialBadItems = ['🐌', '🌀']; // Player slowdown, Inverted Controls
+
+        // Sound effects using Tone.js
+        let collectSound = new Tone.Synth().toDestination(); // For regular good items, health boost
+        let powerUpSound = new Tone.Synth().toDestination(); // For speed boost, shield
+        let hitSound = new Tone.Synth().toDestination(); // For regular bad items, slowdown
+        let debuffSound = new Tone.Synth().toDestination(); // For inverted controls
+        let loveMessageSound = new Tone.Synth().toDestination(); // For "I Love You Bucchi" pop-up
+        let thrillerSound = new Tone.Synth().toDestination(); // New: For thriller event
+
+        // Set specific sounds for better distinction
+        collectSound.oscillator.type = 'triangle';
+        powerUpSound.oscillator.type = 'sine';
+        hitSound.oscillator.type = 'square';
+        debuffSound.oscillator.type = 'sawtooth';
+        loveMessageSound.oscillator.type = 'fmsine'; // A bit more complex for a special sound
+        thrillerSound.oscillator.type = 'fmsine'; // Using FM synth for a drone-like sound
+        thrillerSound.envelope.attack = 0.5; // Slow attack
+        thrillerSound.envelope.release = 1; // Slow release
+        thrillerSound.frequency.value = 'C2'; // Low frequency
+
+        // --- Game Initialization and State Management ---
+
+        function initGame() {
+            score = 0;
+            health = 100;
+            gameRunning = false;
+            fallingItems = [];
+            lastItemSpawnTime = 0;
+            itemSpawnInterval = 1500;
+            gameSpeed = 1;
+            lastScoreForLoveMessage = -1; // Reset love message trigger
+            thrillerTriggered = false; // Reset thriller trigger
+            playerSpeed = basePlayerSpeed; // Reset player speed
+            controlsInverted = false; // Reset inverted controls
+            isShielded = false; // Reset shield
+            player.classList.remove('shielded'); // Remove shield visual
+            gameArea.classList.remove('thriller-mode'); // Remove thriller background
+
+            clearTimeout(slowdownTimeoutId); // Clear any pending slowdowns
+            clearTimeout(speedBoostTimeoutId); // Clear any pending speed boosts
+            clearTimeout(invertTimeoutId); // Clear any pending inverted controls
+            clearTimeout(shieldTimeoutId); // Clear any pending shield
+
+            scoreDisplay.textContent = score;
+            healthDisplay.textContent = health;
+            healthDisplay.classList.remove('health-hit-effect'); // Clear any lingering effects
+            scoreDisplay.classList.remove('score-boost-effect');
+
+            // Clear any existing falling items from previous games
+            document.querySelectorAll('.falling-item').forEach(item => item.remove());
+            document.querySelectorAll('.love-message').forEach(msg => msg.remove()); // Clear love messages
+            document.querySelectorAll('.thriller-message-overlay').forEach(msg => msg.remove()); // Clear thriller messages
+
+            // Position player in the center
+            playerWidth = player.offsetWidth;
+            playerX = (gameArea.clientWidth / 2) - (playerWidth / 2);
+            player.style.left = `${playerX}px`;
+
+            messageBox.style.display = 'block';
+            messageTitle.textContent = 'Welcome, Bucchi!';
+            messageText.innerHTML = 'To start the game, please say "<span class="font-bold text-pink-500">start the game</span>" aloud. Catch all the lovely hearts and stars, but watch out for the broken hearts and skulls! Look out for <span class="font-bold text-yellow-500">🌟</span> (health), <span class="font-bold text-blue-500">⚡</span> (speed), and <span class="font-bold text-green-500">🛡️</span> (shield)! But avoid the <span class="font-bold text-gray-500">🐌</span> (slowdown) and <span class="font-bold text-purple-500">🌀</span> (inverted controls)!';
+            restartButton.classList.add('hidden');
+            voiceStatus.textContent = 'Say "start the game" to begin!';
+
+            // Reset music state
+            backgroundMusic.currentTime = 0;
+            backgroundMusic.pause();
+            backgroundMusic.muted = true;
+            muteButton.textContent = 'Unmute Music';
+
+            // Ensure voice recognition is ready
+            setupVoiceRecognition();
+        }
+
+        async function startGame() {
+            if (gameRunning) return; // Prevent multiple starts
+
+            // Start Tone.js context (required for audio to play)
+            await Tone.start();
+            console.log("Tone.js audio context started.");
+
+            gameRunning = true;
+            messageBox.style.display = 'none';
+            voiceStatus.textContent = 'Game started! Good luck, Bucchi!';
+            backgroundMusic.play().catch(e => console.error("Error playing music:", e)); // Play music, catch potential errors (e.g., user gesture required)
+            backgroundMusic.muted = false;
+            muteButton.textContent = 'Mute Music';
+            gameLoop(); // Start the game loop
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId); // Stop the game loop
+
+            messageBox.style.display = 'block';
+            messageTitle.textContent = 'Game Over, Bucchi!';
+            messageText.innerHTML = `You caught <span class="font-bold text-purple-700">${score}</span> lovely items! Your final health: <span class="font-bold text-red-700">${health}</span>.`;
+            restartButton.classList.remove('hidden');
+            voiceStatus.textContent = 'Game Over. Click "Play Again!" or say "start the game" to restart.';
+
+            backgroundMusic.pause(); // Pause music on game over
+            clearTimeout(slowdownTimeoutId); // Clear any active slowdown
+            clearTimeout(speedBoostTimeoutId); // Clear any active speed boost
+            clearTimeout(invertTimeoutId); // Clear any active inverted controls
+            clearTimeout(shieldTimeoutId); // Clear any active shield
+
+            // Clean up falling items and messages
+            fallingItems.forEach(item => item.element.remove());
+            fallingItems = [];
+            document.querySelectorAll('.love-message').forEach(msg => msg.remove());
+            document.querySelectorAll('.thriller-message-overlay').forEach(msg => msg.remove());
+            gameArea.classList.remove('thriller-mode'); // Ensure thriller background is removed
+        }
+
+        // --- Game Loop and Updates ---
+
+        function gameLoop(currentTime) {
+            if (!gameRunning) return;
+
+            updatePlayerPosition();
+            spawnFallingItem(currentTime);
+            updateFallingItems();
+            checkCollisions();
+            updateDifficulty();
+
+            animationFrameId = requestAnimationFrame(gameLoop); // Continue the loop
+        }
+
+        // --- Player Logic ---
+
+        function updatePlayerPosition() {
+            const gameAreaWidth = gameArea.clientWidth;
+
+            if (controlsInverted) {
+                if (keysPressed['ArrowLeft']) {
+                    playerX += playerSpeed; // Left key moves right
+                }
+                if (keysPressed['ArrowRight']) {
+                    playerX -= playerSpeed; // Right key moves left
+                }
+            } else {
+                if (keysPressed['ArrowLeft']) {
+                    playerX -= playerSpeed;
+                }
+                if (keysPressed['ArrowRight']) {
+                    playerX += playerSpeed;
+                }
+            }
+
+            // Keep player within game area bounds
+            playerX = Math.max(0, Math.min(playerX, gameAreaWidth - playerWidth));
+            player.style.left = `${playerX}px`;
+        }
+
+        // --- Falling Items Logic ---
+
+        function createFallingItem() {
+            // Randomly decide if it's a good, bad, special good, or special bad item
+            const rand = Math.random();
+            let itemType;
+            let itemCategory; // 'good', 'bad', 'specialGood', 'specialBad'
+
+            if (rand < 0.03) { // 3% chance for special good item
+                itemType = specialGoodItems[Math.floor(Math.random() * specialGoodItems.length)];
+                itemCategory = 'specialGood';
+            } else if (rand < 0.06) { // 3% chance for special bad item
+                itemType = specialBadItems[Math.floor(Math.random() * specialBadItems.length)];
+                itemCategory = 'specialBad';
+            } else if (rand < 0.70) { // 64% chance for regular good item
+                itemType = goodItems[Math.floor(Math.random() * goodItems.length)];
+                itemCategory = 'good';
+            } else { // 30% chance for regular bad item
+                itemType = badItems[Math.floor(Math.random() * badItems.length)];
+                itemCategory = 'bad';
+            }
+
+            const itemElement = document.createElement('div');
+            itemElement.classList.add('falling-item');
+            itemElement.textContent = itemType;
+            itemElement.dataset.category = itemCategory; // Custom data attribute for category
+            itemElement.dataset.type = itemType; // Store the actual emoji type for specific logic
+
+            const startX = Math.random() * (gameArea.clientWidth - 50); // Random X position
+            itemElement.style.left = `${startX}px`;
+            itemElement.style.top = `-50px`; // Start above the top
+
+            gameArea.appendChild(itemElement);
+
+            const fallSpeed = (Math.random() * 2 + 3) * gameSpeed; // Random speed between 3-5, scaled by gameSpeed
+            const item = {
+                element: itemElement,
+                x: startX,
+                y: -50,
+                speed: fallSpeed,
+                width: itemElement.offsetWidth,
+                height: itemElement.offsetHeight,
+                category: itemCategory,
+                type: itemType // Store the actual emoji type
+            };
+            fallingItems.push(item);
+        }
+
+        function spawnFallingItem(currentTime) {
+            if (currentTime - lastItemSpawnTime > itemSpawnInterval) {
+                createFallingItem();
+                lastItemSpawnTime = currentTime;
+            }
+        }
+
+        function updateFallingItems() {
+            const gameAreaHeight = gameArea.clientHeight;
+
+            for (let i = fallingItems.length - 1; i >= 0; i--) {
+                const item = fallingItems[i];
+                item.y += item.speed;
+                item.element.style.top = `${item.y}px`;
+
+                // Remove item if it falls off screen
+                if (item.y > gameAreaHeight) {
+                    item.element.remove();
+                    fallingItems.splice(i, 1);
+                    // If a good item (regular or special) is missed, slightly penalize
+                    if (item.category === 'good' || item.category === 'specialGood') {
+                        health = Math.max(0, health - 1); // Small health reduction for missing good items
+                        healthDisplay.textContent = health;
+                        healthDisplay.classList.add('health-hit-effect');
+                        setTimeout(() => healthDisplay.classList.remove('health-hit-effect'), 300);
+                    }
+                    if (health <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        // --- Collision Detection ---
+
+        function checkCollisions() {
+            const playerRect = player.getBoundingClientRect();
+            const gameAreaRect = gameArea.getBoundingClientRect();
+
+            // Adjust playerRect relative to gameArea
+            const playerRelativeRect = {
+                left: playerRect.left - gameAreaRect.left,
+                right: playerRect.right - gameAreaRect.left,
+                top: playerRect.top - gameAreaRect.top,
+                bottom: playerRect.bottom - gameAreaRect.top
+            };
+
+            for (let i = fallingItems.length - 1; i >= 0; i--) {
+                const item = fallingItems[i];
+                const itemRect = item.element.getBoundingClientRect();
+
+                // Adjust itemRect relative to gameArea
+                const itemRelativeRect = {
+                    left: itemRect.left - gameAreaRect.left,
+                    right: itemRect.right - gameAreaRect.left,
+                    top: itemRect.top - gameAreaRect.top,
+                    bottom: itemRect.bottom - gameAreaRect.top
+                };
+
+                // Simple AABB collision detection
+                if (playerRelativeRect.left < itemRelativeRect.right &&
+                    playerRelativeRect.right > itemRelativeRect.left &&
+                    playerRelativeRect.top < itemRelativeRect.bottom &&
+                    playerRelativeRect.bottom > itemRelativeRect.top) {
+
+                    // Collision detected!
+                    if (item.category === 'good') {
+                        score += 10;
+                        scoreDisplay.textContent = score;
+                        scoreDisplay.classList.add('score-boost-effect');
+                        setTimeout(() => scoreDisplay.classList.remove('score-boost-effect'), 300);
+                        collectSound.triggerAttackRelease('C5', '8n'); // Play a note for good item
+                    } else if (item.category === 'specialGood') {
+                        if (item.type === '🌟') { // Health boost
+                            health = Math.min(100, health + 25);
+                            healthDisplay.textContent = health;
+                            healthDisplay.classList.add('health-hit-effect'); // Use hit effect for positive feedback
+                            setTimeout(() => healthDisplay.classList.remove('health-hit-effect'), 300);
+                            collectSound.triggerAttackRelease('E5', '8n'); // Higher note for special good
+                        } else if (item.type === '⚡') { // Speed Boost
+                            playerSpeed = basePlayerSpeed * 1.8; // Significantly increase player speed
+                            voiceStatus.textContent = 'Bucchi is super fast!';
+                            clearTimeout(speedBoostTimeoutId);
+                            speedBoostTimeoutId = setTimeout(() => {
+                                playerSpeed = basePlayerSpeed;
+                                voiceStatus.textContent = gameRunning ? 'Game started! Good luck, Bucchi!' : 'Say "start the game" to begin!';
+                            }, 3000); // Speed boost lasts 3 seconds
+                            powerUpSound.triggerAttackRelease('G5', '8n'); // Distinct sound for speed boost
+                        } else if (item.type === '🛡️') { // Shield
+                            isShielded = true;
+                            player.classList.add('shielded');
+                            voiceStatus.textContent = 'Bucchi has a shield!';
+                            clearTimeout(shieldTimeoutId);
+                            shieldTimeoutId = setTimeout(() => {
+                                isShielded = false;
+                                player.classList.remove('shielded');
+                                voiceStatus.textContent = gameRunning ? 'Game started! Good luck, Bucchi!' : 'Say "start the game" to begin!';
+                            }, 5000); // Shield lasts 5 seconds
+                            powerUpSound.triggerAttackRelease('C6', '8n'); // Distinct sound for shield
+                        }
+                        score += 20; // Special items give more points
+                        scoreDisplay.textContent = score;
+                        scoreDisplay.classList.add('score-boost-effect');
+                        setTimeout(() => scoreDisplay.classList.remove('score-boost-effect'), 300);
+
+                    } else if (item.category === 'bad') { // Regular bad item
+                        if (isShielded) {
+                            isShielded = false;
+                            player.classList.remove('shielded');
+                            clearTimeout(shieldTimeoutId);
+                            voiceStatus.textContent = 'Shield absorbed the hit!';
+                            debuffSound.triggerAttackRelease('C2', '8n'); // Sound for shield breaking
+                        } else {
+                            health -= 20;
+                            healthDisplay.textContent = health;
+                            healthDisplay.classList.add('health-hit-effect');
+                            setTimeout(() => healthDisplay.classList.remove('health-hit-effect'), 300);
+                            hitSound.triggerAttackRelease('C3', '8n'); // Play a low note for bad item
+                        }
+                        if (health <= 0) {
+                            gameOver();
+                        }
+                    } else if (item.category === 'specialBad') {
+                        if (isShielded) {
+                            isShielded = false;
+                            player.classList.remove('shielded');
+                            clearTimeout(shieldTimeoutId);
+                            voiceStatus.textContent = 'Shield absorbed the hit!';
+                            debuffSound.triggerAttackRelease('C2', '8n'); // Sound for shield breaking
+                        } else {
+                            if (item.type === '🐌') { // Player slowdown
+                                health -= 5; // Small health penalty for hitting snail
+                                playerSpeed = basePlayerSpeed * 0.4; // Significantly slow down player
+                                voiceStatus.textContent = 'Bucchi is slowed down!';
+                                clearTimeout(slowdownTimeoutId); // Clear any existing slowdown
+                                slowdownTimeoutId = setTimeout(() => {
+                                    playerSpeed = basePlayerSpeed; // Reset speed after 3 seconds
+                                    voiceStatus.textContent = gameRunning ? 'Game started! Good luck, Bucchi!' : 'Say "start the game" to begin!';
+                                }, 3000); // Slowdown lasts 3 seconds
+                                hitSound.triggerAttackRelease('A2', '8n'); // Even lower note for special bad
+                            } else if (item.type === '🌀') { // Invert Controls
+                                health -= 5; // Small health penalty
+                                controlsInverted = true;
+                                voiceStatus.textContent = 'Controls Inverted!';
+                                clearTimeout(invertTimeoutId);
+                                invertTimeoutId = setTimeout(() => {
+                                    controlsInverted = false;
+                                    voiceStatus.textContent = gameRunning ? 'Game started! Good luck, Bucchi!' : 'Say "start the game" to begin!';
+                                }, 4000); // Invert lasts 4 seconds
+                                debuffSound.triggerAttackRelease('D2', '8n'); // Distinct sound for invert
+                            }
+                            healthDisplay.textContent = health;
+                            healthDisplay.classList.add('health-hit-effect');
+                            setTimeout(() => healthDisplay.classList.remove('health-hit-effect'), 300);
+                        }
+                        if (health <= 0) {
+                            gameOver();
+                        }
+                    }
+
+                    item.element.remove(); // Remove item from DOM
+                    fallingItems.splice(i, 1); // Remove item from array
+
+                    // New: Check for thriller event at 10 points
+                    if (score >= 10 && !thrillerTriggered) {
+                        triggerThrillerEvent();
+                        thrillerTriggered = true;
+                    }
+
+                    // Check for "I Love You Bucchi" pop-up after score update (now at multiples of 10)
+                    if (score > 0 && score % 10 === 0 && score !== lastScoreForLoveMessage) {
+                        showLoveMessage();
+                        lastScoreForLoveMessage = score;
+                    }
+                }
+            }
+        }
+
+        // --- Difficulty Scaling ---
+
+        function updateDifficulty() {
+            // Increase speed and frequency every 100 points
+            if (score > 0 && score % 100 === 0 && itemSpawnInterval > 300) {
+                itemSpawnInterval = Math.max(300, itemSpawnInterval - 50); // Don't go below 300ms
+                gameSpeed += 0.05; // Slightly increase falling speed
+                console.log(`Difficulty increased! Interval: ${itemSpawnInterval}, Speed: ${gameSpeed.toFixed(2)}`);
+                // Reset score for next difficulty increase trigger
+                score += 1; // Prevent immediate re-triggering on same score
+            }
+        }
+
+        // --- "I Love You Bucchi" Pop-up Logic ---
+        function showLoveMessage() {
+            const loveMessageElement = document.createElement('div');
+            loveMessageElement.classList.add('love-message');
+            loveMessageElement.textContent = 'I Love You Bucchi! ❤️';
+            gameArea.appendChild(loveMessageElement);
+
+            loveMessageSound.triggerAttackRelease('F5', '8n'); // Play a sweet sound
+
+            // Remove the message after animation
+            loveMessageElement.addEventListener('animationend', () => {
+                loveMessageElement.remove();
+            });
+        }
+
+        // --- Thriller Event Logic ---
+        function triggerThrillerEvent() {
+            gameArea.classList.add('thriller-mode'); // Change background
+            thrillerSound.triggerAttackRelease('C2', '2s'); // Play a low, sustained drone
+
+            const thrillerMessageOverlay = document.createElement('div');
+            thrillerMessageOverlay.classList.add('thriller-message-overlay');
+            thrillerMessageOverlay.innerHTML = `
+                <div class="thriller-message-content">
+                    You like the game so far, Bucchi?<br>
+                    Call me or play the game further like this...
+                </div>
+            `;
+            gameArea.appendChild(thrillerMessageOverlay);
+
+            // Remove the thriller overlay after its animation
+            thrillerMessageOverlay.addEventListener('animationend', () => {
+                thrillerMessageOverlay.remove();
+            });
+        }
+
+
+        // --- Event Listeners ---
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (gameRunning) {
+                keysPressed[e.key] = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (gameRunning) {
+                keysPressed[e.key] = false;
+            }
+        });
+
+        // Touch controls (swipe left/right)
+        gameArea.addEventListener('touchstart', (e) => {
+            if (gameRunning) {
+                touchStartX = e.touches[0].clientX;
+            }
+        });
+
+        gameArea.addEventListener('touchmove', (e) => {
+            if (gameRunning && touchStartX !== 0) {
+                const touchCurrentX = e.touches[0].clientX;
+                const deltaX = touchCurrentX - touchStartX;
+
+                // Adjust player position based on swipe direction and magnitude
+                if (controlsInverted) {
+                    playerX -= deltaX * 0.5; // Inverted movement
+                } else {
+                    playerX += deltaX * 0.5; // Normal movement
+                }
+
+                // Update touchStartX for continuous movement
+                touchStartX = touchCurrentX;
+
+                // Keep player within bounds
+                const gameAreaWidth = gameArea.clientWidth;
+                playerX = Math.max(0, Math.min(playerX, gameAreaWidth - playerWidth));
+                player.style.left = `${playerX}px`;
+            }
+        });
+
+        gameArea.addEventListener('touchend', () => {
+            touchStartX = 0; // Reset touch start position
+        });
+
+        // Resize handler to keep player centered and update game area dimensions
+        window.addEventListener('resize', () => {
+            // Only re-center player if game is running or if playerWidth is not yet set
+            if (gameRunning || playerWidth === 0) {
+                playerWidth = player.offsetWidth; // Recalculate player width
+                playerX = (gameArea.clientWidth / 2) - (playerWidth / 2);
+                player.style.left = `${playerX}px`;
+            }
+        });
+
+        // Restart button
+        restartButton.addEventListener('click', initGame);
+
+        // Mute/Unmute button
+        muteButton.addEventListener('click', () => {
+            backgroundMusic.muted = !backgroundMusic.muted;
+            muteButton.textContent = backgroundMusic.muted ? 'Unmute Music' : 'Mute Music';
+            if (!backgroundMusic.muted && gameRunning) {
+                backgroundMusic.play().catch(e => console.error("Error playing music after unmute:", e));
+            }
+        });
+
+        // --- Voice Recognition ---
+
+        let recognition;
+
+        function setupVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                voiceStatus.textContent = "Sorry, your browser doesn't support Web Speech API.";
+                console.error("Web Speech API not supported.");
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+
+            recognition.continuous = false; // Listen for a single phrase
+            recognition.interimResults = false; // Only return final results
+            recognition.lang = 'en-US'; // Set language
+
+            recognition.onstart = () => {
+                voiceStatus.textContent = 'Listening for "start the game"...';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase();
+                console.log('Voice command:', transcript);
+                if (transcript.includes('start the game') && !gameRunning) {
+                    startGame();
+                } else if (gameRunning) {
+                    voiceStatus.textContent = 'Game is already running, Bucchi!';
+                } else {
+                    voiceStatus.textContent = 'Command not recognized. Try again: "start the game"';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    voiceStatus.textContent = 'Microphone access denied. Please allow microphone in browser settings to use voice command.';
+                } else {
+                    voiceStatus.textContent = 'Voice command error. Please try again.';
+                }
+            };
+
+            recognition.onend = () => {
+                // If game is not running, restart listening
+                if (!gameRunning) {
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            console.warn("Recognition already started or error restarting:", e);
+                        }
+                    }, 500); // Small delay before restarting to prevent rapid restarts
+                }
+            };
+
+            // Start listening initially
+            try {
+                recognition.start();
+            } catch (e) {
+                console.warn("Recognition already started or error starting initially:", e);
+            }
+        }
+
+        // Initialize the game when the window loads
+        window.onload = initGame;
+    </script>
+</body>
+</html>
